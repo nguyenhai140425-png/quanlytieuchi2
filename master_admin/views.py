@@ -1,13 +1,16 @@
+from django.utils import timezone
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from master_admin.models import Event, Category
 
 TOTAL_AMOUNT_ALLOCATED = "Tổng số tiền được cấp trong năm"
-AMOUNT_ALLOCATED_PERSON = "Số tiên được cấp trên người"
+AMOUNT_ALLOCATED_PERSON = "Số tiền được cấp trên người"
 
 
 def custom_login_view(request):
@@ -69,17 +72,13 @@ def quan_ly_view(request):
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin.")
 
+    current_year = timezone.now().year
     all_categories = Category.objects.all().exclude(Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
-
-    per_user_obj = Category.objects.filter(name=AMOUNT_ALLOCATED_PERSON).first()
-    total_obj = Category.objects.filter(name=TOTAL_AMOUNT_ALLOCATED).first()
-
-    per_user_amount = per_user_obj.amount if per_user_obj else 0
-    total_amount = total_obj.amount if total_obj else 0
+    per_user_amount = Category.objects.filter(name=AMOUNT_ALLOCATED_PERSON, year=str(current_year)).first().amount
+    total_amount = Category.objects.filter(name=TOTAL_AMOUNT_ALLOCATED, year=str(current_year)).first().amount
 
     selected_year = request.GET.get('year')
     available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
-
 
     events = Event.objects.all().order_by('-fromDate')
     if selected_year:
@@ -88,12 +87,37 @@ def quan_ly_view(request):
     context = {
         'all_categories': all_categories,
         'events': events,
-        'per_user_amount':per_user_amount,
-        'totalAmountYear':total_amount,
+        'per_user_amount': per_user_amount,
+        'totalAmountYear': total_amount,
         'available_years': available_years,
         'selected_year': selected_year,
     }
     return render(request, 'quanLySuKien.html', context)
+
+
+def get_categories_by_year(request):
+    year = request.GET.get('year')
+    if year:
+        per_user_amount = 0
+        totalAmountYear = 0
+        categories = Category.objects.filter(year=year).values('id', 'name', 'amount').exclude(
+            Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
+        per_user = Category.objects.filter(name=AMOUNT_ALLOCATED_PERSON, year=year).first()
+        total_amount = Category.objects.filter(name=TOTAL_AMOUNT_ALLOCATED, year=year).first()
+        if per_user:
+            per_user_amount = per_user.amount
+        if total_amount:
+            totalAmountYear = total_amount.amount
+        categories_list = list(categories)
+
+        return JsonResponse({'categories': categories_list,
+                             'per_user_amount': per_user_amount,
+                             'totalAmountYear': totalAmountYear,
+                             }, safe=False)
+
+
+    return JsonResponse({'categories': []}, status=400)
+
 
 @login_required(login_url='/login/')
 def xoa_su_kien_view(request, event_id):
@@ -101,6 +125,7 @@ def xoa_su_kien_view(request, event_id):
     event.delete()
     messages.success(request, "Đã xóa sự kiện thành công!")
     return redirect('quanLySuKien')
+
 
 @login_required(login_url='/login/')
 def quan_ly_danh_muc_view(request):
@@ -163,6 +188,7 @@ def xoa_tieu_chi(request, id):
     category.delete()
     messages.success(request, "Xóa thành công!")
     return redirect('quanLyDanhMuc')
+
 
 def logout_view(request):
     logout(request)

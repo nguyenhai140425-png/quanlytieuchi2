@@ -273,13 +273,14 @@
 
                 <div class="form-group">
                     <label>Năm</label>
-                    <input type="text" name="year" id="edit_year" required>
+                    <input type="number" name="year" id="edit_year" required
+                           onchange="loadCategoriesByYear(this.value)">
                 </div>
 
                 <div style="display: flex; gap: 10px;">
                     <div class="form-group" style="flex: 1;">
                         <label>Số người</label>
-                        <input type="number" name="totalUserAllocated" id="edit_users" value="1" min="1"
+                        <input type="number" name="totalUserAllocated" id="edit_users" value="0" min="0"
                                oninput="calculateTotal()">
                     </div>
                     <div class="form-group" style="flex: 1;">
@@ -377,6 +378,54 @@
                 errorDiv.style.display = 'none';
                 btnSave.disabled = false;
             }
+        }
+
+        function loadCategoriesByYear(year, selectedIds = []) {
+            if (!year) return;
+
+            const selectElement = document.getElementById('edit_categories');
+            const hiddenPerUserAmount = document.getElementById('hidden_per_user_amount');
+            const hiddenTotalYearBudget = document.getElementById('hidden_total_year_budget');
+
+            selectElement.innerHTML = '<option>Đang tải...</option>';
+
+            fetch(`/getCategories/?year=${year}`)
+                .then(response => response.json())
+                .then(data => {
+                    selectElement.innerHTML = '';
+
+                    if (data.categories && data.categories.length > 0) {
+                        data.categories.forEach(cat => {
+                            const option = document.createElement('option');
+                            option.value = cat.id;
+                            option.text = cat.name;
+                            option.setAttribute('data-amount', cat.amount || 0);
+
+                            if (selectedIds.map(String).includes(cat.id.toString())) {
+                                option.selected = true;
+                            }
+                            selectElement.appendChild(option);
+                        });
+                    } else {
+                        selectElement.innerHTML = '<option value="">Không có tiêu chí cho năm này</option>';
+                    }
+
+                    if (data.per_user_amount !== undefined) {
+                        hiddenPerUserAmount.value = data.per_user_amount;
+                    }
+
+                    if (data.totalAmountYear !== undefined) {
+                        hiddenTotalYearBudget.value = data.totalAmountYear;
+                    }
+
+                    if (typeof calculateTotal === "function") {
+                        calculateTotal();
+                    }
+                })
+                .catch(err => {
+                    console.error("Lỗi fetch:", err);
+                    selectElement.innerHTML = '<option>Lỗi kết nối server</option>';
+                });
         }
 
         function confirmDelete() {
