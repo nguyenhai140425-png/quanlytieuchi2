@@ -65,4 +65,5 @@ class Event(models.Model):
     toDate = models.DateField()
     year = models.IntegerField(default=datetime.date.today().year)
     is_adhoc = models.BooleanField(default=False)
+    is_reviewed = models.BooleanField(default=True)
     categories = models.ManyToManyField(Category)

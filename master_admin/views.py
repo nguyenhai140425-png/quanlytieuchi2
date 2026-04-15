@@ -254,9 +254,10 @@ def quan_ly_su_kien_phat_sinh_view(request):
                     totalAmount=cleanAmount,
                     year=year,
                     is_adhoc=True,
+                    is_reviewed=False,
                 )
                 new_event.categories.set(danh_muc_ids)
-                messages.success(request, "Thêm sự kiện phát sinh mới thành công!")
+                messages.success(request, "Thêm sự kiện phát sinh mới thành công! Sự kiện sẽ chờ duyệt.")
 
             # Kiểm tra ngày kết thúc để redirect tới trang phù hợp
             to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
@@ -265,7 +266,7 @@ def quan_ly_su_kien_phat_sinh_view(request):
             if to_date_obj < today:
                 return redirect('quanLySuKienDaDienRa')
             else:
-                return redirect('quanLySuKienPhatSinh')
+                return redirect('duyetSuKien')
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin.")
 
@@ -277,9 +278,9 @@ def quan_ly_su_kien_phat_sinh_view(request):
     selected_year = request.GET.get('year')
     available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
 
-    # Lọc các sự kiện phát sinh chưa diễn ra
+    # Lọc các sự kiện phát sinh đã được duyệt và chưa diễn ra
     today = date.today()
-    events = Event.objects.filter(is_adhoc=True, toDate__gte=today).order_by('-fromDate')
+    events = Event.objects.filter(is_adhoc=True, is_reviewed=True, toDate__gte=today).order_by('-fromDate')
     if selected_year:
         events = events.filter(year=selected_year)
 
@@ -292,6 +293,54 @@ def quan_ly_su_kien_phat_sinh_view(request):
         'selected_year': selected_year,
     }
     return render(request, 'quanLySuKienPhatSinh.html', context)
+
+
+@login_required(login_url='/login/')
+@admin_required
+def duyet_su_kien_view(request):
+    current_year = timezone.now().year
+    all_categories = Category.objects.all().exclude(Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
+    per_user_amount = Category.objects.filter(name=AMOUNT_ALLOCATED_PERSON, year=str(current_year)).first().amount
+    total_amount = Category.objects.filter(name=TOTAL_AMOUNT_ALLOCATED, year=str(current_year)).first().amount
+
+    selected_year = request.GET.get('year')
+    available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
+
+    today = date.today()
+    events = Event.objects.filter(is_adhoc=True, is_reviewed=False, toDate__gte=today).order_by('-fromDate')
+    if selected_year:
+        events = events.filter(year=selected_year)
+
+    context = {
+        'all_categories': all_categories,
+        'events': events,
+        'per_user_amount': per_user_amount,
+        'totalAmountYear': total_amount,
+        'available_years': available_years,
+        'selected_year': selected_year,
+    }
+    return render(request, 'duyetSuKien.html', context)
+
+
+@login_required(login_url='/login/')
+@admin_required
+def phe_duyet_su_kien_view(request, event_id):
+    if request.method == 'POST':
+        event = get_object_or_404(Event, id=event_id, is_adhoc=True, is_reviewed=False)
+        event.is_reviewed = True
+        event.save()
+        messages.success(request, 'Sự kiện đã được duyệt thành công!')
+    return redirect('duyetSuKien')
+
+
+@login_required(login_url='/login/')
+@admin_required
+def khong_duyet_su_kien_view(request, event_id):
+    if request.method == 'POST':
+        event = get_object_or_404(Event, id=event_id, is_adhoc=True, is_reviewed=False)
+        event.delete()  # Xóa sự kiện thay vì reject
+        messages.warning(request, 'Sự kiện đã bị từ chối và xóa khỏi hệ thống!')
+    return redirect('duyetSuKien')
 
 
 def get_categories_by_year(request):

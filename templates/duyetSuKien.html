@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Duyệt sự kiện phát sinh{% endblock %}
+
+{% block extra_css %}
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .btn-approve {
+            background: #28a745;
+            color: #fff;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: #fff;
+        }
+
+        .table-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background: #fafafa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f1fdf0;
+            color: #2d7a33;
+            border: 1px solid #c6eed1;
+        }
+
+        .empty-state {
+            padding: 20px;
+            color: #555;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div>
+        <header>
+            <div>
+                <h1>Duyệt sự kiện phát sinh</h1>
+                <p>Danh sách các sự kiện phát sinh mới đang chờ duyệt.</p>
+            </div>
+        </header>
+
+        {% if messages %}
+            <div class="message">
+                {% for message in messages %}
+                    {{ message }}<br>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Tiêu đề</th>
+                        <th>Từ ngày</th>
+                        <th>Đến ngày</th>
+                        <th>Năm</th>
+                        <th>Số người</th>
+                        <th>Tổng tiền</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if events %}
+                        {% for event in events %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ event.title }}</td>
+                                <td>{{ event.fromDate }}</td>
+                                <td>{{ event.toDate }}</td>
+                                <td>{{ event.year }}</td>
+                                <td>{{ event.totalUserAllocated }}</td>
+                                <td>{{ event.totalAmount }}</td>
+                                <td>
+                                    <form action="{% url 'pheDuyetSuKien' event.id %}" method="post" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-approve">Duyệt</button>
+                                    </form>
+                                    <form action="{% url 'khongDuyetSuKien' event.id %}" method="post" style="display:inline; margin-left: 10px;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-reject" onclick="return confirm('Bạn có chắc muốn từ chối duyệt sự kiện này?')">Không duyệt nữa</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="empty-state">Hiện không có sự kiện nào đang chờ duyệt.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
