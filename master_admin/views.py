@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
-from master_admin.models import Event, Category, UserRole
+from master_admin.models import Event, Category, UserRole, User
 
 TOTAL_AMOUNT_ALLOCATED = "Tổng số tiền được cấp trong năm"
 AMOUNT_ALLOCATED_PERSON = "Số tiền được cấp trên người"
@@ -65,6 +65,36 @@ def admin_dashboard(request):
         'completed_events': completed_events,
     }
     return render(request, 'admin_dashboard.html', context)
+
+
+@login_required(login_url='/login/')
+@admin_required
+def create_user(request):
+    """Tạo user thường mới (chỉ admin mới được tạo)"""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        
+        if username and email and password:
+            # Kiểm tra username đã tồn tại chưa
+            if User.objects.filter(username=username).exists():
+                messages.error(request, f"Tên đăng nhập '{username}' đã tồn tại!")
+            elif User.objects.filter(email=email).exists():
+                messages.error(request, f"Email '{email}' đã được sử dụng!")
+            else:
+                # Tạo user mới với role USER
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    role=UserRole.USER
+                )
+                messages.success(request, f"Đã tạo user '{username}' thành công!")
+        else:
+            messages.error(request, "Vui lòng điền đầy đủ thông tin!")
+    
+    return redirect('admin_dashboard')
 
 
 @login_required(login_url='/login/')

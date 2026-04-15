@@ -17,6 +17,6 @@ urlpatterns = [
     path('getCategories/', views.get_categories_by_year, name='get_categories_api'),
     path('login/', views.custom_login_view, name='login'),
 
-    path('logout/', views.logout_view, name='logout'),
+    path('create_user/', views.create_user, name='create_user'),
     # path('signup/', views.signup, name="signup")
 ]
