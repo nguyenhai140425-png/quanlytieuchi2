@@ -159,9 +159,7 @@ def user_dashboard(request):
         fromDate = request.POST.get('fromDate')
         toDate = request.POST.get('toDate')
         year = request.POST.get('year')
-        totalUserAllocated = request.POST.get('totalUserAllocated')
-        totalAmount = request.POST.get('totalAmount', '0')
-        cleanAmount = totalAmount.replace('.', '').strip()
+        totalUserAllocated = int(request.POST.get('totalUserAllocated') or 0)
         danh_muc_ids = request.POST.getlist('danh_muc')
 
         if title and fromDate and toDate:
@@ -170,13 +168,24 @@ def user_dashboard(request):
                 fromDate=fromDate,
                 toDate=toDate,
                 totalUserAllocated=totalUserAllocated,
-                totalAmount=cleanAmount,
+                totalAmount=0,
                 year=year,
   
                 is_adhoc=True,   # 🔥 User tạo sẽ là sự kiện phát sinh luôn, chờ admin duyệt
                 approval_status=EventApprovalStatus.PENDING
             )
-            new_event.categories.set(danh_muc_ids)
+            total = totalUserAllocated * float(_get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON))
+            for cat_id in danh_muc_ids:
+                category = Category.objects.get(id=cat_id)
+                EventCategory.objects.create(
+                    event=new_event,
+                    category=category,
+                    quantity=1
+                )
+                total += float(category.amount)
+
+            new_event.totalAmount = total
+            new_event.save()
             messages.success(request, "Đã gửi yêu cầu tạo sự kiện! Chờ admin duyệt.")
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin!")
@@ -188,11 +197,15 @@ def user_dashboard(request):
     toDate__gte=today,
     approval_status=EventApprovalStatus.APPROVED   # 👈 FIX QUAN TRỌNG
 ).order_by('fromDate')
-    categories = Category.objects.all()
+    categories = Category.objects.exclude(
+        Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON)
+    )
     
     context = {
         'upcoming_events': upcoming_events,
         'categories': categories,
+        'per_user_amount': _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON),
+        'totalAmountYear': _get_fixed_category_amount(TOTAL_AMOUNT_ALLOCATED),
     }
     return render(request, 'user_dashboard.html', context)
 

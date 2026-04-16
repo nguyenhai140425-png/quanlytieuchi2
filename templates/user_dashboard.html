@@ -22,6 +22,14 @@
             opacity: 0.9;
         }
 
+        .create-event-section {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
         .events-section {
             margin-top: 30px;
         }
@@ -107,70 +115,122 @@
             margin: 0;
             color: #666;
         }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .btn-save {
+            background: #000;
+            color: #fff;
+            width: 100%;
+            margin-top: 15px;
+            border: none;
+            border-radius: 4px;
+            padding: 12px;
+            cursor: pointer;
+        }
+
+        .btn-save:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        #budget-error {
+            color: #ff4d4d;
+            font-size: 12px;
+            margin-top: 10px;
+            font-weight: bold;
+            display: none;
+        }
     </style>
 {% endblock %}
 
 {% block content %}
     <div class="welcome-section">
-        <h1>👋 Chào mừng, {{ user.username }}!</h1>
+        <h1>Chào mừng, {{ user.username }}!</h1>
         <p>Xem các sự kiện dự kiến sắp diễn ra trong hệ thống</p>
     </div>
 
-    <!-- Form tạo sự kiện -->
-    <div class="create-event-section" style="background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); margin-bottom: 30px;">
-        <h2 style="margin-bottom: 20px; color: #333;">📝 Tạo Sự Kiện Mới</h2>
-        <form method="post" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+    <div class="create-event-section">
+        <h2 style="margin-bottom: 20px; color: #333;">Tạo Sự Kiện Mới</h2>
+        <form method="post" id="userEventForm">
             {% csrf_token %}
-            <div>
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Tiêu đề sự kiện</label>
-                <input type="text" name="title" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="hidden" id="hidden_per_user_amount" value="{{ per_user_amount|default:0 }}">
+            <input type="hidden" id="hidden_total_year_budget" value="{{ totalAmountYear|default:0 }}">
+
+            <div class="form-group">
+                <label>Tiêu đề sự kiện</label>
+                <input type="text" name="title" id="user_title" required>
             </div>
-            <div>
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Ngày bắt đầu</label>
-                <input type="date" name="fromDate" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Ngày kết thúc</label>
-                <input type="date" name="toDate" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Năm</label>
-                <input type="number" name="year" value="2026" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Số người tham gia</label>
-                <input type="number" name="totalUserAllocated" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div>
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Tổng kinh phí (VNĐ)</label>
-                <input type="text" name="totalAmount" placeholder="Ví dụ: 1.000.000" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-            </div>
-            <div style="grid-column: 1 / -1;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Danh mục</label>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-                    {% for category in categories %}
-                    <label style="display: flex; align-items: center;">
-                        <input type="checkbox" name="danh_muc" value="{{ category.id }}" style="margin-right: 5px;">
-                        {{ category.name }}
-                    </label>
-                    {% endfor %}
+
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Ngày bắt đầu</label>
+                    <input type="date" name="fromDate" id="user_fromDate" required>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Ngày kết thúc</label>
+                    <input type="date" name="toDate" id="user_toDate" required>
                 </div>
             </div>
-            <div style="grid-column: 1 / -1;">
-                <button type="submit" style="background: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Tạo Sự Kiện</button>
+
+            <div class="form-group">
+                <label>Năm</label>
+                <input type="number" name="year" id="user_year" value="2026" required onchange="loadUserCategoriesByYear(this.value)">
             </div>
+
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Số người tham gia</label>
+                    <input type="number" name="totalUserAllocated" id="user_users" value="0" min="0" oninput="calculateUserTotal()">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Tổng tiền (Tự động tính)</label>
+                    <input type="text" name="totalAmount" id="user_amount" readonly style="background: #f5f5f5; cursor: default;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tiêu Chí (Chọn thêm)</label>
+                <select name="danh_muc" id="user_categories" multiple style="height: 100px;" onchange="calculateUserTotal()">
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" data-amount="{{ category.amount }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="budget-error">Vượt quá tổng ngân sách cấp trong năm.</div>
+
+            <button type="submit" class="btn-save" id="userBtnSave">Tạo Sự Kiện</button>
         </form>
     </div>
 
     <div class="info-box">
         <p>
-            <strong>ℹ️ Thông tin:</strong> Bạn đang xem các sự kiện dự kiến sắp diễn ra. 
+            <strong>Thông tin:</strong> Bạn đang xem các sự kiện dự kiến sắp diễn ra.
             Nếu bạn cần quyền quản lý, vui lòng liên hệ với quản trị viên.
         </p>
     </div>
 
     <div class="events-section">
-        <h2>📅 Sự Kiện Sắp Diễn Ra</h2>
+        <h2>Sự Kiện Sắp Diễn Ra</h2>
 
         {% if upcoming_events %}
             {% for event in upcoming_events %}
@@ -218,4 +278,83 @@
             </div>
         {% endif %}
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        function calculateUserTotal() {
+            const users = parseInt(document.getElementById('user_users').value) || 0;
+            const perUserPrice = parseFloat(document.getElementById('hidden_per_user_amount').value) || 0;
+            const selectCat = document.getElementById('user_categories');
+            const amountInput = document.getElementById('user_amount');
+            const btnSave = document.getElementById('userBtnSave');
+            const errorDiv = document.getElementById('budget-error');
+            const budgetYearNew = parseFloat(document.getElementById('hidden_total_year_budget').value) || 0;
+
+            let extraAmountPerPerson = 0;
+            Array.from(selectCat.selectedOptions).forEach(option => {
+                extraAmountPerPerson += parseFloat(option.getAttribute('data-amount')) || 0;
+            });
+
+            const finalTotal = (perUserPrice * users) + extraAmountPerPerson;
+            amountInput.value = finalTotal.toLocaleString('vi-VN');
+
+            if (finalTotal > budgetYearNew) {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = `Vượt ngân sách! (Tối đa: ${budgetYearNew.toLocaleString('vi-VN')} đ)`;
+                btnSave.disabled = true;
+            } else {
+                errorDiv.style.display = 'none';
+                btnSave.disabled = false;
+            }
+        }
+
+        function loadUserCategoriesByYear(year, selectedIds = []) {
+            if (!year) return;
+
+            const selectElement = document.getElementById('user_categories');
+            const hiddenPerUserAmount = document.getElementById('hidden_per_user_amount');
+            const hiddenTotalYearBudget = document.getElementById('hidden_total_year_budget');
+
+            selectElement.innerHTML = '<option>Đang tải...</option>';
+
+            fetch(`/getCategories/?year=${year}`)
+                .then(response => response.json())
+                .then(data => {
+                    selectElement.innerHTML = '';
+
+                    if (data.categories && data.categories.length > 0) {
+                        data.categories.forEach(cat => {
+                            const option = document.createElement('option');
+                            option.value = cat.id;
+                            option.text = cat.name;
+                            option.setAttribute('data-amount', cat.amount || 0);
+
+                            if (selectedIds.map(String).includes(cat.id.toString())) {
+                                option.selected = true;
+                            }
+                            selectElement.appendChild(option);
+                        });
+                    } else {
+                        selectElement.innerHTML = '<option value="">Không có tiêu chí cho năm này</option>';
+                    }
+
+                    if (data.per_user_amount !== undefined) {
+                        hiddenPerUserAmount.value = data.per_user_amount;
+                    }
+
+                    if (data.totalAmountYear !== undefined) {
+                        hiddenTotalYearBudget.value = data.totalAmountYear;
+                    }
+
+                    calculateUserTotal();
+                })
+                .catch(err => {
+                    console.error("Lỗi fetch:", err);
+                    selectElement.innerHTML = '<option>Lỗi kết nối server</option>';
+                });
+        }
+
+        loadUserCategoriesByYear(document.getElementById('user_year').value);
+    </script>
 {% endblock %}
