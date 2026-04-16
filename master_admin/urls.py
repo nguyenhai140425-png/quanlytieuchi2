@@ -17,9 +17,10 @@ urlpatterns = [
     path('xoaSuKien/<int:event_id>/', views.xoa_su_kien_view, name='xoaSuKien'),
     path('quanLyDanhMuc/', views.quan_ly_danh_muc_view, name='quanLyDanhMuc'),
     path('xoaTieuChi/<int:id>/', views.xoa_tieu_chi, name='xoaTieuChi'),
-    path('getCategories/', views.get_categories_by_year, name='get_categories_api'),
+    path('getCategories/', views.get_categories, name='get_categories_api'),
+    path('quanLyNguoiDung/', views.quan_ly_nguoi_dung_view, name='quanLyNguoiDung'),
+    path('xoaNguoiDung/<int:user_id>/', views.xoa_nguoi_dung_view, name='xoaNguoiDung'),
     path('login/', views.custom_login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
-    path('create_user/', views.create_user, name='create_user'),
     # path('signup/', views.signup, name="signup")
 ]

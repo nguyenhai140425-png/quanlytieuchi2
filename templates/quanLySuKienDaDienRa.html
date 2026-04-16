@@ -140,15 +140,6 @@
             outline: none;
         }
 
-        /* Cảnh báo lỗi ngân sách */
-        #budget-error {
-            color: #ff4d4d;
-            font-size: 12px;
-            margin-top: 10px;
-            font-weight: bold;
-            display: none;
-        }
-
         tfoot td {
             background: #fafafa;
             font-weight: bold;
@@ -179,19 +170,6 @@
     <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; width: 100%;">
         <h1>Quản lý các sự kiện đã diễn ra</h1>
     </header>
-
-    <div class="filter-section">
-        <form method="GET" action="">
-            <select name="year" class="year-select" onchange="this.form.submit()">
-                <option value="">-- Lọc theo năm --</option>
-                {% for y in available_years %}
-                    <option value="{{ y }}" {% if y|stringformat:"s" == selected_year %}selected{% endif %}>
-                        Năm {{ y }}
-                    </option>
-                {% endfor %}
-            </select>
-        </form>
-    </div>
 
     <div class="table-container">
         <table>
@@ -233,15 +211,6 @@
                 </tr>
             {% endfor %}
             </tbody>
-
-            <tfoot>
-            <tr>
-                <td colspan="6" style="text-align: right; padding: 15px 20px;">Tổng ngân sách cấp trong năm:</td>
-                <td style="text-align: right; padding: 15px 20px; font-size: 15px; color: #000;">
-                    <span id="display_budget_year"></span> đ
-                </td>
-            </tr>
-            </tfoot>
         </table>
     </div>
 
@@ -250,8 +219,6 @@
             <h3 id="modalTitle" style="margin-bottom: 20px;">Chi tiết sự kiện</h3>
             <form id="mainForm">
                 {% csrf_token %}
-                <input type="hidden" id="hidden_per_user_amount" value="{{ per_user_amount|default:0 }}">
-                <input type="hidden" id="hidden_total_year_budget" value="{{ totalAmountYear|default:0 }}">
 
                 <div class="form-group">
                     <label>Tên sự kiện</label>
@@ -303,8 +270,6 @@
 {% block extra_js %}
     <script>
         const modal = document.getElementById('modalEvent');
-        const budgetYear = parseFloat(document.getElementById('hidden_total_year_budget').value) || 0;
-        document.getElementById('display_budget_year').innerText = budgetYear.toLocaleString('vi-VN');
 
         function openViewModal(id, title, fromDate, toDate, categoryIds, users, amount, year) {
             document.getElementById('modalTitle').innerText = "Chi tiết sự kiện";

@@ -146,6 +146,12 @@ USE_I18N = True
 USE_TZ = True
 LOGIN_URL = 'login'
 
+AUTH_USER_MODEL = 'master_admin.User'
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 

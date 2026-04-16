@@ -34,7 +34,6 @@
             padding: 12px;
         }
 
-        /* Style cho trạng thái bị khóa */
         .btn-save:disabled {
             background: #ccc;
             cursor: not-allowed;
@@ -140,7 +139,6 @@
             outline: none;
         }
 
-        /* Cảnh báo lỗi ngân sách */
         #budget-error {
             color: #ff4d4d;
             font-size: 12px;
@@ -155,23 +153,6 @@
             border-top: 2px solid #eee;
         }
 
-        .filter-section {
-            margin-bottom: 15px;
-        }
-
-        .year-select {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            outline: none;
-            min-width: 150px;
-            cursor: pointer;
-        }
-
-        .year-select:focus {
-            border-color: #000;
-        }
     </style>
 {% endblock %}
 
@@ -180,19 +161,6 @@
         <h1>Quản lý các sự kiện dự kiến</h1>
         <button class="btn btn-add" onclick="openAddModal()">+ Thêm mới</button>
     </header>
-
-    <div class="filter-section">
-        <form method="GET" action="">
-            <select name="year" class="year-select" onchange="this.form.submit()">
-                <option value="">-- Lọc theo năm --</option>
-                {% for y in available_years %}
-                    <option value="{{ y }}" {% if y|stringformat:"s" == selected_year %}selected{% endif %}>
-                        Năm {{ y }}
-                    </option>
-                {% endfor %}
-            </select>
-        </form>
-    </div>
 
     <div class="table-container">
         <table>

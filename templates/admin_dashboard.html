@@ -96,38 +96,6 @@
     <div>
         <h1 style="margin-bottom: 30px;">Bảng Điều Khiển Admin</h1>
 
-        <div class="dashboard-container">
-            <div class="dashboard-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-number">{{ total_events }}</div>
-                        <div class="card-label">Sự Kiện Dự Kiến</div>
-                    </div>
-                    <div class="card-icon">📅</div>
-                </div>
-            </div>
-
-            <div class="dashboard-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-number">{{ adhoc_events }}</div>
-                        <div class="card-label">Sự Kiện Phát Sinh</div>
-                    </div>
-                    <div class="card-icon">⚡</div>
-                </div>
-            </div>
-
-            <div class="dashboard-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="card-number">{{ completed_events }}</div>
-                        <div class="card-label">Sự Kiện Đã Diễn Ra</div>
-                    </div>
-                    <div class="card-icon">✓</div>
-                </div>
-            </div>
-        </div>
-
         <div class="quick-links">
             <h3>Quản Lý Nhanh</h3>
             <div class="link-grid">
@@ -136,46 +104,8 @@
                 <a href="{% url 'quanLySuKienPhatSinh' %}" class="link-btn">Sự Kiện Phát Sinh</a>
                 <a href="{% url 'quanLySuKienDaDienRa' %}" class="link-btn">Xem Sự Kiện Đã Diễn Ra</a>
                 <a href="{% url 'quanLyDanhMuc' %}" class="link-btn">Quản Lý Tiêu Chí</a>
+                <a href="{% url 'quanLyNguoiDung' %}" class="link-btn">Quản Lý Người Dùng</a>
             </div>
-        </div>
-
-        <div class="info-section">
-            <h3>� Tạo User Mới</h3>
-            <form method="post" action="{% url 'create_user' %}">
-                {% csrf_token %}
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 15px; align-items: end; margin-bottom: 15px;">
-                    <div>
-                        <label for="username" style="display: block; margin-bottom: 5px; font-weight: bold;">Tên đăng nhập:</label>
-                        <input type="text" id="username" name="username" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    <div>
-                        <label for="email" style="display: block; margin-bottom: 5px; font-weight: bold;">Email:</label>
-                        <input type="email" id="email" name="email" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    <div>
-                        <label for="password" style="display: block; margin-bottom: 5px; font-weight: bold;">Mật khẩu:</label>
-                        <input type="password" id="password" name="password" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    <div>
-                        <button type="submit" style="background: #28a745; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">Tạo User</button>
-                    </div>
-                </div>
-                {% if messages %}
-                    {% for message in messages %}
-                        <div style="color: {% if message.tags == 'success' %}green{% else %}red{% endif %}; margin-top: 10px;">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            </form>
-        </div>
-
-        <div class="info-section">
-            <h3>�💡 Gợi Ý</h3>
-            <p>
-                Bạn là Admin của hệ thống. Hãy sử dụng các menu bên trái để quản lý các sự kiện, tiêu chí và xem các báo cáo.
-                Tất cả các thay đổi của bạn sẽ được ghi nhận và hiển thị cho người dùng thông thường.
-            </p>
         </div>
     </div>
 {% endblock %}

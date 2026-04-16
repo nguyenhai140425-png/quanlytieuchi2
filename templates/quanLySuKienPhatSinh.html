@@ -158,15 +158,6 @@
             outline: none;
         }
 
-        /* Cảnh báo lỗi ngân sách */
-        #budget-error {
-            color: #ff4d4d;
-            font-size: 12px;
-            margin-top: 10px;
-            font-weight: bold;
-            display: none;
-        }
-
         tfoot td {
             background: #fafafa;
             font-weight: bold;
@@ -198,19 +189,6 @@
         <h1>Quản lý sự kiện phát sinh</h1>
         <button class="btn btn-add" onclick="openAddModal()">+ Thêm mới</button>
     </header>
-
-    <div class="filter-section">
-        <form method="GET" action="">
-            <select name="year" class="year-select" onchange="this.form.submit()">
-                <option value="">-- Lọc theo năm --</option>
-                {% for y in available_years %}
-                    <option value="{{ y }}" {% if y|stringformat:"s" == selected_year %}selected{% endif %}>
-                        Năm {{ y }}
-                    </option>
-                {% endfor %}
-            </select>
-        </form>
-    </div>
 
     <div class="table-container">
         <table>
@@ -262,15 +240,6 @@
                 </tr>
             {% endfor %}
             </tbody>
-
-            <tfoot>
-            <tr>
-                <td colspan="6" style="text-align: right; padding: 15px 20px;">Tổng ngân sách cấp trong năm:</td>
-                <td style="text-align: right; padding: 15px 20px; font-size: 15px; color: #000;">
-                    <span id="display_budget_year"></span> đ
-                </td>
-            </tr>
-            </tfoot>
         </table>
     </div>
 
@@ -279,8 +248,6 @@
             <h3 id="modalTitle" style="margin-bottom: 20px;">Thêm sự kiện phát sinh</h3>
             <form action="{% url 'quanLySuKienPhatSinh' %}" method="POST" id="mainForm">
                 {% csrf_token %}
-                <input type="hidden" id="hidden_per_user_amount" value="{{ per_user_amount|default:0 }}">
-                <input type="hidden" id="hidden_total_year_budget" value="{{ totalAmountYear|default:0 }}">
                 <input type="hidden" name="event_id" id="edit_id">
                 <input type="hidden" name="is_adhoc" value="1">
 
@@ -303,7 +270,7 @@
                 <div class="form-group">
                     <label>Năm</label>
                     <input type="number" name="year" id="edit_year" required
-                           onchange="loadCategoriesByYear(this.value)">
+                           onchange="loadCategories()">
                 </div>
 
                 <div style="display: flex; gap: 10px;">
@@ -329,8 +296,6 @@
                     </select>
                 </div>
 
-                <div id="budget-error">⚠️ Vượt quá tổng ngân sách cấp trong năm!</div>
-
                 <button type="submit" class="btn btn-save" id="btnSave">Lưu lại</button>
                 <button type="button" id="btnDelete" class="btn"
                         style="color: #fff; width: 100%; margin-top: 15px; border-radius: 4px; padding: 12px; background: #ff4d4d; display: none;"
@@ -345,19 +310,16 @@
 {% block extra_js %}
     <script>
         const modal = document.getElementById('modalEvent');
-        const budgetYear = parseFloat(document.getElementById('hidden_total_year_budget').value) || 0;
-        document.getElementById('display_budget_year').innerText = budgetYear.toLocaleString('vi-VN');
 
         function openAddModal() {
             document.getElementById('modalTitle').innerText = "Thêm sự kiện phát sinh";
             document.getElementById('edit_id').value = "";
             document.getElementById('mainForm').reset();
             document.getElementById('btnDelete').style.display = 'none';
-            document.getElementById('budget-error').style.display = 'none';
             document.getElementById('btnSave').disabled = false;
             const y = new Date().getFullYear();
             document.getElementById('edit_year').value = y;
-            loadCategoriesByYear(y);
+            loadCategories();
             modal.classList.add('active');
         }
 
@@ -369,7 +331,7 @@
             document.getElementById('edit_fromDate').value = fromDate;
             document.getElementById('edit_toDate').value = toDate;
             document.getElementById('edit_users').value = users;
-            loadCategoriesByYear(year, categoryIds);
+            loadCategories(categoryIds);
 
             const select = document.getElementById('edit_categories');
             Array.from(select.options).forEach(option => {
@@ -387,43 +349,25 @@
 
         function calculateTotal() {
             const users = parseInt(document.getElementById('edit_users').value) || 0;
-            const perUserPrice = parseFloat(document.getElementById('hidden_per_user_amount').value) || 0;
             const selectCat = document.getElementById('edit_categories');
             const amountInput = document.getElementById('edit_amount');
-            const btnSave = document.getElementById('btnSave');
-            const errorDiv = document.getElementById('budget-error');
-            const budgetYearNew = parseFloat(document.getElementById('hidden_total_year_budget').value) || 0;
-            document.getElementById('display_budget_year').innerText = budgetYearNew.toLocaleString('vi-VN');
 
             let extraAmountPerPerson = 0;
             Array.from(selectCat.selectedOptions).forEach(option => {
                 extraAmountPerPerson += parseFloat(option.getAttribute('data-amount')) || 0;
             });
 
-            const finalTotal = (perUserPrice * users) + extraAmountPerPerson;
+            const finalTotal = extraAmountPerPerson;
 
             amountInput.value = finalTotal.toLocaleString('vi-VN');
-
-            if (finalTotal > budgetYearNew) {
-                errorDiv.style.display = 'block';
-                errorDiv.innerText = `⚠️ Vượt ngân sách! (Tối đa: ${budgetYearNew.toLocaleString('vi-VN')} đ)`;
-                btnSave.disabled = true;
-            } else {
-                errorDiv.style.display = 'none';
-                btnSave.disabled = false;
-            }
         }
 
-        function loadCategoriesByYear(year, selectedIds = []) {
-            if (!year) return;
-
+        function loadCategories(selectedIds = []) {
             const selectElement = document.getElementById('edit_categories');
-            const hiddenPerUserAmount = document.getElementById('hidden_per_user_amount');
-            const hiddenTotalYearBudget = document.getElementById('hidden_total_year_budget');
 
             selectElement.innerHTML = '<option>Đang tải...</option>';
 
-            fetch(`/getCategories/?year=${year}`)
+            fetch(`/getCategories/`)
                 .then(response => response.json())
                 .then(data => {
                     selectElement.innerHTML = '';
@@ -441,19 +385,9 @@
                             selectElement.appendChild(option);
                         });
                     } else {
-                        selectElement.innerHTML = '<option value="">Không có tiêu chí cho năm này</option>';
+                        selectElement.innerHTML = '<option value="">Không có tiêu chí</option>';
                     }
 
-                    if (data.per_user_amount !== undefined) {
-                        hiddenPerUserAmount.value = data.per_user_amount;
-                    }
-
-                    if (data.totalAmountYear !== undefined) {
-                        hiddenTotalYearBudget.value = data.totalAmountYear;
-                    }
-
-                    document.getElementById('hidden_per_user_amount').value = data.per_user_amount || 0;
-                    document.getElementById('hidden_total_year_budget').value = data.totalAmountYear || 0;
                     calculateTotal();
 
                 })

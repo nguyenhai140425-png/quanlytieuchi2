@@ -35,28 +35,47 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser):
     username = models.CharField(max_length=150, unique=True)
-    name = models.CharField(max_length=128, default="")
-    password = models.CharField(max_length=128)
     email = models.CharField(max_length=255, unique=True)
     is_active = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
-    last_login = models.DateTimeField(blank=True, null=True)
     role = models.PositiveSmallIntegerField(
         choices=UserRole.choices, default=UserRole.ADMIN
     )
     objects = UserManager()
     EMAIL_FIELD = "email"
     USERNAME_FIELD = "username"
+    REQUIRED_FIELDS = ['email']
 
+    @property
+    def is_staff(self):
+        return self.role == UserRole.ADMIN
+
+    @property
+    def is_superuser(self):
+        return self.role == UserRole.ADMIN
+
+    def has_perm(self, perm, obj=None):
+        return self.role == UserRole.ADMIN
+
+    def has_module_perms(self, app_label):
+        return self.role == UserRole.ADMIN
+
+#class Category(models.Model):
+#    name = models.CharField(max_length=100)
+#    amount = models.DecimalField(max_digits=15, decimal_places=0)
+#    fromDate = models.DateField()
+#    toDate = models.DateField()
+#    year = models.IntegerField(default=datetime.date.today().year)
+#    def __str__(self):
+#        return self.name
 class Category(models.Model):
-    name = models.CharField(max_length=100)
-    amount = models.DecimalField(max_digits=15, decimal_places=0)
-    fromDate = models.DateField()
-    toDate = models.DateField()
-    year = models.IntegerField(default=datetime.date.today().year)
-    def __str__(self):
-        return self.name
+    name = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    fromDate = models.DateField(null=True, blank=True)
+    toDate = models.DateField(null=True, blank=True)
+    year = models.IntegerField(null=True, blank=True)
 
+    is_fixed = models.BooleanField(default=False)  # 🔥 THÊM DÒNG NÀY
 class EventApprovalStatus(models.IntegerChoices):
     PENDING = 1, 'Chờ duyệt'
     APPROVED = 2, 'Đã duyệt'
@@ -73,4 +92,12 @@ class Event(models.Model):
     approval_status = models.PositiveSmallIntegerField(
         choices=EventApprovalStatus.choices, default=EventApprovalStatus.APPROVED
     )
-    categories = models.ManyToManyField(Category)
+#    categories = models.ManyToManyField(Category)
+    categories = models.ManyToManyField(
+    Category,
+    through='EventCategory'
+)
+class EventCategory(models.Model):
+    event = models.ForeignKey('Event', on_delete=models.CASCADE)
+    category = models.ForeignKey('Category', on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)

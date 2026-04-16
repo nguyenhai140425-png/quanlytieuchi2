@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block title %}Quản lý người dùng{% endblock %}
+
+{% block extra_css %}
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .btn-add {
+            background: #000;
+            color: #fff;
+        }
+
+        .btn-save {
+            background: #000;
+            color: #fff;
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 4px;
+            padding: 12px;
+        }
+
+        /* Style cho trạng thái bị khóa */
+        .btn-save:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-close-text {
+            background: none;
+            color: #666;
+            margin-top: 10px;
+            width: 100%;
+            text-decoration: underline;
+            border: none;
+            cursor: pointer;
+        }
+
+        .table-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background: #fafafa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .clickable-row {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .clickable-row:hover {
+            background: #f9fafb;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            width: 450px;
+            padding: 30px;
+            border-radius: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <header>
+        <h1>Quản lý người dùng</h1>
+        <button class="btn btn-add" onclick="openAddModal()">Thêm người dùng</button>
+    </header>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tên đăng nhập</th>
+                    <th>Email</th>
+                    <th>Quyền</th>
+                    <th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="clickable-row" onclick="openEditModal({{ user.id }}, '{{ user.username|escapejs }}', '{{ user.email|escapejs }}')">
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.get_role_display }}</td>
+                    <td>
+                        <form method="post" action="{% url 'xoaNguoiDung' user.id %}" style="display: inline;" onsubmit="return confirm('Bạn có chắc muốn xóa người dùng này?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn" style="background: #dc3545; color: white; padding: 5px 10px;">Xóa</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal thêm/sửa người dùng -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Thêm người dùng</h2>
+            <form method="post" id="userForm">
+                {% csrf_token %}
+                <input type="hidden" name="user_id" id="user_id">
+                <div class="form-group">
+                    <label for="username">Tên đăng nhập</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mật khẩu</label>
+                    <input type="password" id="password" name="password" required>
+                    <small id="passwordHelp" style="color: #666; display: none;">Để trống nếu không muốn đổi mật khẩu khi sửa.</small>
+                </div>
+                <button type="submit" class="btn btn-save">Lưu</button>
+                <button type="button" class="btn btn-close-text" onclick="closeModal()">Hủy</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openAddModal() {
+            document.getElementById('modalTitle').textContent = 'Thêm người dùng';
+            document.getElementById('user_id').value = '';
+            document.getElementById('username').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = true;
+            document.getElementById('passwordHelp').style.display = 'none';
+            document.getElementById('userModal').classList.add('active');
+        }
+
+        function openEditModal(id, username, email) {
+            document.getElementById('modalTitle').textContent = 'Sửa người dùng';
+            document.getElementById('user_id').value = id;
+            document.getElementById('username').value = username;
+            document.getElementById('email').value = email;
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = false;
+            document.getElementById('passwordHelp').style.display = 'block';
+            document.getElementById('userModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('userModal').classList.remove('active');
+        }
+
+        // Đóng modal khi click bên ngoài
+        document.getElementById('userModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+
+{% endblock %}
