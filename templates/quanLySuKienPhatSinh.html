@@ -210,9 +210,9 @@
                     <td><strong>{{ item.year }}</strong></td>
                     <td>
                         {% if item.approval_status == 2 %}
-                            <span class="status-approved">Đã duyệt</span>
+                            <span class="status-approved">{{ item.get_approval_status_display }}</span>
                         {% else %}
-                            <span class="status-rejected">Không duyệt</span>
+                            <span class="status-rejected">{{ item.get_approval_status_display }}</span>
                         {% endif %}
                     </td>
                     <td style="text-align: right;">{{ item.totalUserAllocated|default:"0" }}</td>

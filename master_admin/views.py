@@ -159,7 +159,10 @@ def user_dashboard(request):
         fromDate = request.POST.get('fromDate')
         toDate = request.POST.get('toDate')
         year = request.POST.get('year')
-        totalUserAllocated = int(request.POST.get('totalUserAllocated') or 0)
+        totalUserAllocated = request.POST.get('totalUserAllocated')
+        totalAmount = request.POST.get('totalAmount', '0')
+        # 🔥 Xử lý định dạng tiền tệ Việt Nam (1.234.567,89 -> 1234567.89)
+        cleanAmount = totalAmount.replace('.', '').replace(',', '.').strip()
         danh_muc_ids = request.POST.getlist('danh_muc')
 
         if title and fromDate and toDate:
@@ -168,24 +171,13 @@ def user_dashboard(request):
                 fromDate=fromDate,
                 toDate=toDate,
                 totalUserAllocated=totalUserAllocated,
-                totalAmount=0,
+                totalAmount=cleanAmount,
                 year=year,
   
                 is_adhoc=True,   # 🔥 User tạo sẽ là sự kiện phát sinh luôn, chờ admin duyệt
                 approval_status=EventApprovalStatus.PENDING
             )
-            total = totalUserAllocated * float(_get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON))
-            for cat_id in danh_muc_ids:
-                category = Category.objects.get(id=cat_id)
-                EventCategory.objects.create(
-                    event=new_event,
-                    category=category,
-                    quantity=1
-                )
-                total += float(category.amount)
-
-            new_event.totalAmount = total
-            new_event.save()
+            new_event.categories.set(danh_muc_ids)
             messages.success(request, "Đã gửi yêu cầu tạo sự kiện! Chờ admin duyệt.")
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin!")
@@ -197,91 +189,21 @@ def user_dashboard(request):
     toDate__gte=today,
     approval_status=EventApprovalStatus.APPROVED   # 👈 FIX QUAN TRỌNG
 ).order_by('fromDate')
-    categories = Category.objects.exclude(
-        Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON)
-    )
+    categories = Category.objects.all()
     
     context = {
         'upcoming_events': upcoming_events,
         'categories': categories,
-        'per_user_amount': _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON),
-        'totalAmountYear': _get_fixed_category_amount(TOTAL_AMOUNT_ALLOCATED),
     }
     return render(request, 'user_dashboard.html', context)
 
-
-#@login_required(login_url='/login/')
-#@admin_required
-#def quan_ly_view(request):
-#    if request.method == 'POST':
-#        event_id = request.POST.get('event_id')
-
-#        title = request.POST.get('title')
-#        fromDate = request.POST.get('fromDate')
-#        toDate = request.POST.get('toDate')
-#        year = request.POST.get('year')
-#        totalUserAllocated = request.POST.get('totalUserAllocated')
-#        totalAmount = request.POST.get('totalAmount', '0')
-#        cleanAmount = totalAmount.replace('.', '').strip()
-#        danh_muc_ids = request.POST.getlist('danh_muc')
-
-#        if title and fromDate and toDate:
-#            if event_id:
-#                event = get_object_or_404(Event, id=event_id)
-#                event.title = title
-#                event.fromDate = fromDate
-#                event.toDate = toDate
-#                event.year = year
-#                event.totalAmount = cleanAmount
-#                event.totalUserAllocated = totalUserAllocated
-#                event.is_adhoc = False
-#                event.save()
-                
-#                event.categories.set(danh_muc_ids)
-#                messages.success(request, "Cập nhật sự kiện thành công!")
-#            else:
-#                new_event = Event.objects.create(
-#                    title=title,
-#                    fromDate=fromDate,
-#                    toDate=toDate,
-#                    totalUserAllocated=totalUserAllocated,
-#                    totalAmount=cleanAmount,
-#                    year=year,
-#                    is_adhoc=False,
-#                )
-#                new_event.categories.set(danh_muc_ids)
-#                messages.success(request, "Thêm sự kiện mới thành công!")
-
- #           # Kiểm tra ngày kết thúc để redirect tới trang phù hợp
- #           to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
- #           today = date.today()
-            
-#            if to_date_obj < today:
-#                return redirect('quanLySuKienDaDienRa')
-#            else:
-#                return redirect('quanLySuKien')
-#        else:
-#            messages.error(request, "Vui lòng điền đầy đủ thông tin.")
-
-#    all_categories = Category.objects.all().exclude(Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
-
-    # Chỉ hiển thị sự kiện dự kiến (chưa diễn ra)
-#    today = date.today()
-#    events = Event.objects.filter(
-#    is_adhoc=False,
-#    approval_status=EventApprovalStatus.APPROVED,
-#    toDate__gte=today
-#).order_by('-fromDate')
-#    context = {
-#        'all_categories': all_categories,
-#        'events': events,
-#    }
-#    return render(request, 'quanLySuKien.html', context)
 @login_required(login_url='/login/')
 @admin_required
 def quan_ly_view(request):
     if request.method == 'POST':
         event_id = request.POST.get('event_id')
+        parent_event_id = request.POST.get('parent_event_id')
+        is_child_mode = request.POST.get('is_child_mode') == '1'
 
         title = request.POST.get('title')
         fromDate = request.POST.get('fromDate')
@@ -292,61 +214,86 @@ def quan_ly_view(request):
         danh_muc_ids = request.POST.getlist('danh_muc')
 
         if title and fromDate and toDate:
-            if event_id:
-                event = get_object_or_404(Event, id=event_id)
-                event.title = title
-                event.fromDate = fromDate
-                event.toDate = toDate
-                event.year = year
-                event.totalUserAllocated = totalUserAllocated
-                event.is_adhoc = False
-                event.save()
-            else:
+            if is_child_mode:
+                parent_event = get_object_or_404(Event, id=parent_event_id)
+
                 event = Event.objects.create(
                     title=title,
                     fromDate=fromDate,
                     toDate=toDate,
-                    totalUserAllocated=totalUserAllocated,
-                    year=year,
-                    is_adhoc=False,
+                    year=parent_event.year,
+                    totalUserAllocated=parent_event.totalUserAllocated,
+                    totalAmount=parent_event.totalAmount,
+                    is_adhoc=parent_event.is_adhoc,
+                    parent_event=parent_event,
+                    approval_status=parent_event.approval_status,
                 )
 
-            # 🔥 IMPORT
-            from master_admin.models import EventCategory
+                # Inherit categories from parent event
+                parent_categories = EventCategory.objects.filter(event=parent_event)
+                for parent_category in parent_categories:
+                    EventCategory.objects.create(
+                        event=event,
+                        category=parent_category.category,
+                        quantity=parent_category.quantity,
+                    )
 
-            # 🔥 XÓA DỮ LIỆU CŨ (khi edit)
-            EventCategory.objects.filter(event=event).delete()
+                messages.success(request, "Lưu sự kiện con thành công!")
+            else:
+                if event_id:
+                    event = get_object_or_404(Event, id=event_id)
+                    event.title = title
+                    event.fromDate = fromDate
+                    event.toDate = toDate
+                    event.year = year
+                    event.totalUserAllocated = totalUserAllocated
+                    event.is_adhoc = False
+                    # 🔥 ĐỬNG SAVE TỪ ĐÂY - LƯU SAU KHI TÍNH TOTAL
+                else:
+                    event = Event.objects.create(
+                        title=title,
+                        fromDate=fromDate,
+                        toDate=toDate,
+                        totalUserAllocated=totalUserAllocated,
+                        year=year,
+                        is_adhoc=False,
+                        totalAmount=0,  # 🔥 SET MẶC ĐỊNH 0 TRC TÍNH TOÁN
+                    )
 
-            total = 0
+                # 🔥 IMPORT
+                from master_admin.models import EventCategory
 
-            # 🔥 LẤY TIỀN / NGƯỜI
-            money_per_person = Category.objects.get(
-                name="Số tiền được cấp trên người"
-            ).amount
+                # 🔥 XÓA DỮ LIỆU CŨ (khi edit)
+                EventCategory.objects.filter(event=event).delete()
 
-            total += int(totalUserAllocated) * float(money_per_person)
+                total = 0
 
-            # 🔥 XỬ LÝ TIÊU CHÍ
-            for cat_id in danh_muc_ids:
-                quantity = request.POST.get(f'quantity_{cat_id}', 0)
-                quantity = int(quantity) if quantity else 0
+                # 🔥 LẤY TIỀN / NGƯỜI
+                money_per_person = Category.objects.get(
+                    name="Số tiền được cấp trên người"
+                ).amount
 
-                category = Category.objects.get(id=cat_id)
+                total += int(totalUserAllocated) * float(money_per_person)
 
-                # lưu DB
-                EventCategory.objects.create(
-                    event=event,
-                    category=category,
-                    quantity=quantity
-                )
+                # 🔥 XỬ LÝ TIÊU CHÍ
+                for cat_id in danh_muc_ids:
+                    category = Category.objects.get(id=cat_id)
 
-                total += float(category.amount) * quantity
+                    # lưu DB (quantity mặc định = 1 vì frontend chỉ select/deselect)
+                    EventCategory.objects.create(
+                        event=event,
+                        category=category,
+                        quantity=1
+                    )
 
-            # 🔥 CẬP NHẬT TOTAL
-            event.totalAmount = total
-            event.save()
+                    # 🔥 CỘNG TRỰC TIẾP AMOUNT (không nhân quantity)
+                    total += float(category.amount)
 
-            messages.success(request, "Lưu sự kiện thành công!")
+                # 🔥 CẬP NHẬT TOTAL VÀ LƯU (LẦN DUY NHẤT)
+                event.totalAmount = total
+                event.save()
+
+                messages.success(request, "Lưu sự kiện thành công!")
 
             # 🔥 redirect
             to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
@@ -409,73 +356,12 @@ def quan_ly_su_kien_phat_sinh_view(request):
         fromDate = request.POST.get('fromDate')
         toDate = request.POST.get('toDate')
         year = request.POST.get('year')
-        total_users = int(request.POST.get('totalUserAllocated') or 0)
-        danh_muc_ids = request.POST.getlist('danh_muc')
-
-        if not (title and fromDate and toDate):
-            messages.error(request, "Vui lòng điền đầy đủ thông tin.")
-            return redirect('quanLySuKienPhatSinh')
-
-        if event_id:
-            event = get_object_or_404(Event, id=event_id)
-            event.title = title
-            event.fromDate = fromDate
-            event.toDate = toDate
-            event.year = year
-            event.totalUserAllocated = total_users
-            event.is_adhoc = True
-            event.approval_status = EventApprovalStatus.APPROVED
-            event.save()
-        else:
-            event = Event.objects.create(
-                title=title,
-                fromDate=fromDate,
-                toDate=toDate,
-                totalUserAllocated=total_users,
-                totalAmount=0,
-                year=year,
-                is_adhoc=True,
-                approval_status=EventApprovalStatus.APPROVED,
-            )
-
-        EventCategory.objects.filter(event=event).delete()
-
-        total = total_users * float(_get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON))
-        for cat_id in danh_muc_ids:
-            quantity = request.POST.get(f'quantity_{cat_id}', 1)
-            quantity = int(quantity) if quantity else 1
-            category = Category.objects.get(id=cat_id)
-
-            EventCategory.objects.create(
-                event=event,
-                category=category,
-                quantity=quantity
-            )
-            total += float(category.amount) * quantity
-
-        event.is_adhoc = True
-        event.approval_status = EventApprovalStatus.APPROVED
-        event.totalAmount = total
-        event.save()
-
-        messages.success(request, "Lưu sự kiện phát sinh thành công!")
-
-        if datetime.strptime(toDate, '%Y-%m-%d').date() < date.today():
-            return redirect('quanLySuKienDaDienRa')
-        return redirect('quanLySuKienPhatSinh')
-
-    if request.method == 'POST':
-        event_id = request.POST.get('event_id')
-
-        title = request.POST.get('title')
-        fromDate = request.POST.get('fromDate')
-        toDate = request.POST.get('toDate')
-        year = request.POST.get('year')
         totalUserAllocated = request.POST.get('totalUserAllocated')
         danh_muc_ids = request.POST.getlist('danh_muc')
 
         if title and fromDate and toDate:
             if event_id:
+                # Edit existing event
                 event = get_object_or_404(Event, id=event_id)
                 event.title = title
                 event.fromDate = fromDate
@@ -483,81 +369,77 @@ def quan_ly_su_kien_phat_sinh_view(request):
                 event.year = year
                 event.totalUserAllocated = totalUserAllocated
                 event.is_adhoc = True
-                event.approval_status = EventApprovalStatus.APPROVED
-                event.save()
+                # 🔥 KHÔNG SAVE TỪ ĐÂY - LƯU SAU KHI TÍNH TOTAL
             else:
+                # Create new event
                 event = Event.objects.create(
                     title=title,
                     fromDate=fromDate,
                     toDate=toDate,
                     totalUserAllocated=totalUserAllocated,
-                    totalAmount=0,
                     year=year,
                     is_adhoc=True,
                     approval_status=EventApprovalStatus.APPROVED,
+                    totalAmount=0,  # 🔥 SET MẶC ĐỊNH 0 TRC TÍNH TOÁN
                 )
 
+            # 🔥 XÓA DỮ LIỆU CŨ (khi edit)
             EventCategory.objects.filter(event=event).delete()
 
             total = 0
+
+            # 🔥 LẤY TIỀN / NGƯỜI
             money_per_person = Category.objects.get(
-                name="Sá»‘ tiá»n Ä‘Æ°á»£c cáº¥p trÃªn ngÆ°á»i"
+                name="Số tiền được cấp trên người"
             ).amount
 
             total += int(totalUserAllocated) * float(money_per_person)
-            money_per_person = _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON)
-            total = int(totalUserAllocated or 0) * float(money_per_person)
 
+            # 🔥 XỬ LÝ TIÊU CHÍ
             for cat_id in danh_muc_ids:
-                quantity = request.POST.get(f'quantity_{cat_id}', 0)
-                quantity = int(quantity) if quantity else 1
-
                 category = Category.objects.get(id=cat_id)
 
+                # lưu DB (quantity mặc định = 1 vì frontend chỉ select/deselect)
                 EventCategory.objects.create(
                     event=event,
                     category=category,
-                    quantity=quantity
+                    quantity=1
                 )
 
-                total += float(category.amount) * quantity
+                # 🔥 CỘNG TRỰC TIẾP AMOUNT (không nhân quantity)
+                total += float(category.amount)
 
-            event.is_adhoc = True
-            event.approval_status = EventApprovalStatus.APPROVED
+            # 🔥 CẬP NHẬT TOTAL
             event.totalAmount = total
             event.save()
 
-            messages.success(request, "LÆ°u sá»± kiá»‡n phÃ¡t sinh thÃ nh cÃ´ng!")
-
-            to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
-            today = date.today()
-
-            if to_date_obj < today:
-                return redirect('quanLySuKienDaDienRa')
+            messages.success(request, "Lưu sự kiện phát sinh thành công!")
             return redirect('quanLySuKienPhatSinh')
         else:
-            messages.error(request, "Vui lÃ²ng Ä‘iá»n Ä‘áº§y Ä‘á»§ thÃ´ng tin.")
+            messages.error(request, "Vui lòng điền đầy đủ thông tin!")
 
-    all_categories = Category.objects.exclude(
-        Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON)
+    all_categories = Category.objects.all().exclude(
+        Q(name=TOTAL_AMOUNT_ALLOCATED) |
+        Q(name=AMOUNT_ALLOCATED_PERSON)
     )
     today = date.today()
     events = Event.objects.filter(
         is_adhoc=True,
-    ).filter(
-        Q(
-            approval_status=EventApprovalStatus.APPROVED,
-            toDate__gte=today,
-        ) |
-        Q(approval_status=EventApprovalStatus.REJECTED)
+        approval_status__in=[
+            EventApprovalStatus.APPROVED,
+            EventApprovalStatus.REJECTED
+        ],
+        toDate__gte=today
     ).order_by('-fromDate')
 
-    return render(request, 'quanLySuKienPhatSinh.html', {
+    context = {
         'all_categories': all_categories,
         'events': events,
         'per_user_amount': _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON),
         'totalAmountYear': _get_fixed_category_amount(TOTAL_AMOUNT_ALLOCATED),
-    })
+    }
+
+    return render(request, 'quanLySuKienPhatSinh.html', context)
 
 
 @login_required(login_url='/login/')
@@ -566,6 +448,7 @@ def duyet_su_kien_view(request):
     today = date.today()
 
     events = Event.objects.filter(
+        is_adhoc=True,
         approval_status=EventApprovalStatus.PENDING
     ).order_by('-fromDate')
 
@@ -578,41 +461,44 @@ def duyet_su_kien_view(request):
 @admin_required
 def phe_duyet_su_kien_view(request, event_id):
     if request.method == 'POST':
-        event = get_object_or_404(
-            Event,
-            id=event_id,
-            approval_status=EventApprovalStatus.PENDING
-        )
+        event = Event.objects.filter(id=event_id).first()
+        if not event:
+            messages.error(request, 'Không tìm thấy sự kiện để duyệt.')
+            return redirect('duyetSuKien')
+
+        if event.approval_status != EventApprovalStatus.PENDING:
+            messages.warning(request, 'Sự kiện này đã được xử lý trước đó.')
+            return redirect('duyetSuKien')
 
         event.approval_status = EventApprovalStatus.APPROVED
-
         # 🔥 GIỮ NGUYÊN is_adhoc=True → để vào "sự kiện phát sinh"
         event.is_adhoc = True
-
         event.save()
 
         messages.success(request, 'Đã duyệt! Sự kiện đã chuyển sang mục phát sinh.')
 
-    return redirect('quanLySuKienPhatSinh')
+    return redirect('duyetSuKien')
 
 
 @login_required(login_url='/login/')
 @admin_required
 def khong_duyet_su_kien_view(request, event_id):
     if request.method == 'POST':
-        event = get_object_or_404(
-            Event,
-            id=event_id,
-            approval_status=EventApprovalStatus.PENDING
-        )
+        event = Event.objects.filter(id=event_id).first()
+        if not event:
+            messages.error(request, 'Không tìm thấy sự kiện để từ chối.')
+            return redirect('duyetSuKien')
+
+        if event.approval_status != EventApprovalStatus.PENDING:
+            messages.warning(request, 'Sự kiện này đã được xử lý trước đó.')
+            return redirect('duyetSuKien')
 
         event.approval_status = EventApprovalStatus.REJECTED
-        event.is_adhoc = True
         event.save()
 
-        messages.warning(request, 'Sự kiện không được duyệt và đã chuyển sang mục phát sinh.')
+        messages.warning(request, 'Sự kiện đã bị từ chối.')
 
-    return redirect('quanLySuKienPhatSinh')
+    return redirect('duyetSuKien')
 def get_categories(request):
     categories = Category.objects.all().values('id', 'name', 'amount').exclude(
         Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
