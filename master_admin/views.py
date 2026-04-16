@@ -390,17 +390,160 @@ def quan_ly_da_dien_ra_view(request):
 @login_required(login_url='/login/')
 @admin_required
 def quan_ly_su_kien_phat_sinh_view(request):
-    all_categories = Category.objects.all()
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        title = request.POST.get('title')
+        fromDate = request.POST.get('fromDate')
+        toDate = request.POST.get('toDate')
+        year = request.POST.get('year')
+        total_users = int(request.POST.get('totalUserAllocated') or 0)
+        danh_muc_ids = request.POST.getlist('danh_muc')
+
+        if not (title and fromDate and toDate):
+            messages.error(request, "Vui lòng điền đầy đủ thông tin.")
+            return redirect('quanLySuKienPhatSinh')
+
+        if event_id:
+            event = get_object_or_404(Event, id=event_id)
+            event.title = title
+            event.fromDate = fromDate
+            event.toDate = toDate
+            event.year = year
+            event.totalUserAllocated = total_users
+            event.is_adhoc = True
+            event.approval_status = EventApprovalStatus.APPROVED
+            event.save()
+        else:
+            event = Event.objects.create(
+                title=title,
+                fromDate=fromDate,
+                toDate=toDate,
+                totalUserAllocated=total_users,
+                totalAmount=0,
+                year=year,
+                is_adhoc=True,
+                approval_status=EventApprovalStatus.APPROVED,
+            )
+
+        EventCategory.objects.filter(event=event).delete()
+
+        total = total_users * float(_get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON))
+        for cat_id in danh_muc_ids:
+            quantity = request.POST.get(f'quantity_{cat_id}', 1)
+            quantity = int(quantity) if quantity else 1
+            category = Category.objects.get(id=cat_id)
+
+            EventCategory.objects.create(
+                event=event,
+                category=category,
+                quantity=quantity
+            )
+            total += float(category.amount) * quantity
+
+        event.is_adhoc = True
+        event.approval_status = EventApprovalStatus.APPROVED
+        event.totalAmount = total
+        event.save()
+
+        messages.success(request, "Lưu sự kiện phát sinh thành công!")
+
+        if datetime.strptime(toDate, '%Y-%m-%d').date() < date.today():
+            return redirect('quanLySuKienDaDienRa')
+        return redirect('quanLySuKienPhatSinh')
+
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+
+        title = request.POST.get('title')
+        fromDate = request.POST.get('fromDate')
+        toDate = request.POST.get('toDate')
+        year = request.POST.get('year')
+        totalUserAllocated = request.POST.get('totalUserAllocated')
+        danh_muc_ids = request.POST.getlist('danh_muc')
+
+        if title and fromDate and toDate:
+            if event_id:
+                event = get_object_or_404(Event, id=event_id)
+                event.title = title
+                event.fromDate = fromDate
+                event.toDate = toDate
+                event.year = year
+                event.totalUserAllocated = totalUserAllocated
+                event.is_adhoc = True
+                event.approval_status = EventApprovalStatus.APPROVED
+                event.save()
+            else:
+                event = Event.objects.create(
+                    title=title,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    totalUserAllocated=totalUserAllocated,
+                    totalAmount=0,
+                    year=year,
+                    is_adhoc=True,
+                    approval_status=EventApprovalStatus.APPROVED,
+                )
+
+            EventCategory.objects.filter(event=event).delete()
+
+            total = 0
+            money_per_person = Category.objects.get(
+                name="Sá»‘ tiá»n Ä‘Æ°á»£c cáº¥p trÃªn ngÆ°á»i"
+            ).amount
+
+            total += int(totalUserAllocated) * float(money_per_person)
+            money_per_person = _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON)
+            total = int(totalUserAllocated or 0) * float(money_per_person)
+
+            for cat_id in danh_muc_ids:
+                quantity = request.POST.get(f'quantity_{cat_id}', 0)
+                quantity = int(quantity) if quantity else 1
+
+                category = Category.objects.get(id=cat_id)
+
+                EventCategory.objects.create(
+                    event=event,
+                    category=category,
+                    quantity=quantity
+                )
+
+                total += float(category.amount) * quantity
+
+            event.is_adhoc = True
+            event.approval_status = EventApprovalStatus.APPROVED
+            event.totalAmount = total
+            event.save()
+
+            messages.success(request, "LÆ°u sá»± kiá»‡n phÃ¡t sinh thÃ nh cÃ´ng!")
+
+            to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
+            today = date.today()
+
+            if to_date_obj < today:
+                return redirect('quanLySuKienDaDienRa')
+            return redirect('quanLySuKienPhatSinh')
+        else:
+            messages.error(request, "Vui lÃ²ng Ä‘iá»n Ä‘áº§y Ä‘á»§ thÃ´ng tin.")
+
+    all_categories = Category.objects.exclude(
+        Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON)
+    )
     today = date.today()
     events = Event.objects.filter(
         is_adhoc=True,
-        approval_status=EventApprovalStatus.APPROVED,
-        toDate__gte=today
+    ).filter(
+        Q(
+            approval_status=EventApprovalStatus.APPROVED,
+            toDate__gte=today,
+        ) |
+        Q(approval_status=EventApprovalStatus.REJECTED)
     ).order_by('-fromDate')
 
     return render(request, 'quanLySuKienPhatSinh.html', {
         'all_categories': all_categories,
         'events': events,
+        'per_user_amount': _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON),
+        'totalAmountYear': _get_fixed_category_amount(TOTAL_AMOUNT_ALLOCATED),
     })
 
 
@@ -422,10 +565,11 @@ def duyet_su_kien_view(request):
 @admin_required
 def phe_duyet_su_kien_view(request, event_id):
     if request.method == 'POST':
-        events = Event.objects.filter(
-    is_adhoc=True,
-    approval_status=EventApprovalStatus.APPROVED
-).order_by('-fromDate')
+        event = get_object_or_404(
+            Event,
+            id=event_id,
+            approval_status=EventApprovalStatus.PENDING
+        )
 
         event.approval_status = EventApprovalStatus.APPROVED
 
@@ -449,11 +593,13 @@ def khong_duyet_su_kien_view(request, event_id):
             approval_status=EventApprovalStatus.PENDING
         )
 
-        event.delete()
+        event.approval_status = EventApprovalStatus.REJECTED
+        event.is_adhoc = True
+        event.save()
 
-        messages.warning(request, 'Sự kiện đã bị từ chối và đã xóa!')
+        messages.warning(request, 'Sự kiện không được duyệt và đã chuyển sang mục phát sinh.')
 
-    return redirect('duyetSuKien')
+    return redirect('quanLySuKienPhatSinh')
 def get_categories(request):
     categories = Category.objects.all().values('id', 'name', 'amount').exclude(
         Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
